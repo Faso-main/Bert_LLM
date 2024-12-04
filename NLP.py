@@ -1,6 +1,4 @@
-import re
-import os
-import spacy
+import spacy, re, spacy, os
 from transformers import BertTokenizer, BertModel
 import torch
 
@@ -18,16 +16,6 @@ class EDSSCalculator:
             'mental_state': 0,
             'fatigue': 0
         }
-    
-    def assess_mobility(self, distance):
-        if distance >= 1000:
-            self.scores['mobility'] = 1
-        elif 500 <= distance < 1000:
-            self.scores['mobility'] = 2
-        elif 200 <= distance < 500:
-            self.scores['mobility'] = 3
-        else:
-            self.scores['mobility'] = 4
 
     def assess_sensory(self, sensory_type):
         self.scores['sensory'] = {
@@ -110,7 +98,6 @@ tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
 
 def extract_information(text):
     results = {
-        'distance': None,
         'visual_acuity': None,
         'motor_strength': None,
         'sensory_feedback': None,
@@ -134,8 +121,6 @@ def extract_information(text):
         if "головокружение" in sent.text:
             results['cognitive_feedback'] = 'mild'
 
-        if "240 метров" in sent.text:
-            results['distance'] = 240
         
         if "острота зрения" in sent.text:
             match = re.search(r'OD=(\S+);\s*OS=(\S+)', sent.text)
@@ -171,7 +156,7 @@ def evaluate_model(text):
     with torch.no_grad():
         outputs = model(**inputs)
     
-    # Тут можно вставить вашу логику оценки модели
+    # логика оценки модели
     return outputs
 
 def main():
@@ -197,9 +182,6 @@ def main():
     if results['visual_acuity']:
         acuity_left, acuity_right = results['visual_acuity']
         edss_calculator.assess_visual(acuity_left, acuity_right)
-
-    if results['distance']:
-        edss_calculator.assess_mobility(results['distance'])
 
     if results['sensory_feedback']:
         edss_calculator.assess_sensory(results['sensory_feedback'])
