@@ -3,7 +3,7 @@ import torch.nn as nn
 from datetime import datetime, timedelta
 import torch.optim as optim
 from transformers import BertTokenizer, BertModel
-from SamGTU.Gspread_NY import sorted_sheet, gs
+from Gspread_NY import sorted_sheet, gs
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -131,7 +131,7 @@ questions = inquiry.get_questions()
 answers = inquiry.hashmap
 
 
-Train_new_model = False # (True - тренировка модели, False - использование готовой)
+Train_new_model = True # (True - тренировка модели, False - использование готовой)
 Developer_mode= False # (True - показ времени и точнсти в ответе, False - вывод только ответа)
 
 # Поиск ответов

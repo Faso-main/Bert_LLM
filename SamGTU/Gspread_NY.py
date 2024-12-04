@@ -2,7 +2,7 @@ import gspread, time, functools, numpy, os
 from datetime import datetime, timedelta
 from time import time
 
-key__path=os.path.join("LLM","Key.json") 
+key__path=os.path.join("SamGTU","Key.json") 
 
 def on_hold(seconds: int): time.sleep(seconds) #задержка для передачи излишних запросов серверу
 
