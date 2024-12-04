@@ -209,9 +209,8 @@ def main():
 
     print(f'Рассчитанный уровень EDSS: {edss_score:.1f}')
 
-    # Оценка модели
-    model_output = evaluate_model(truncated_text)
-    print(f'Выход модели: {model_output}')
+    # оценка модели
+    print(f'Выход модели: {evaluate_model(truncated_text)}')
 
 if __name__ == "__main__":
     main()
