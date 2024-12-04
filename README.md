@@ -24,5 +24,3 @@
 
    ```bash
    pip install torch transformers gspread numpy
-# Bert_LLM
-# Bert_LLM
