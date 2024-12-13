@@ -159,8 +159,8 @@ def evaluate_model(text):
     # логика оценки модели
     return outputs
 
-def main():
-    file_path = os.path.join('TestFiles', '708.txt')
+def main(user_id: str)->None:
+    file_path = os.path.join('TestFiles', str(user_id)+'.txt')
     clinical_text = read_text_file(file_path)
 
     if not clinical_text:
@@ -209,8 +209,8 @@ def main():
 
     print(f'Рассчитанный уровень EDSS: {edss_score:.1f}')
 
-    # оценка модели
-    #print(f'Выход модели: {evaluate_model(truncated_text)}')
+    return evaluate_model(truncated_text)
+
 
 if __name__ == "__main__":
-    main()
+    main(632)
