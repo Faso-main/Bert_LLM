@@ -23,4 +23,5 @@
 2. Установите необходимые библиотеки с помощью pip:
 
    ```bash
+   python -m spacy download ru_core_news_md
    pip install torch transformers gspread numpy

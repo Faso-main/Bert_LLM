@@ -1,152 +1,145 @@
-import spacy, re, spacy, os
-from transformers import BertTokenizer, BertModel
+import spacy
+import re
+import os
 import torch
+from transformers import BertTokenizer, BertModel
+import logging
+
+# Setting up logging
+logging.basicConfig(level=logging.INFO)
 
 class EDSSCalculator:
     def __init__(self):
-        self.scores = {
-            'mobility': 0,
-            'sensory': 0,
-            'visual': 0,
-            'bladder_bowel': 0,
-            'cognitive': 0,
-            'motor': 0,
-            'cerebellar': 0,
-            'speech': 0,
-            'mental_state': 0,
-            'fatigue': 0
+        # Initializing the scores dictionary for different health metrics
+        self.scores = {key: 0 for key in [
+            'mobility', 'sensory', 'visual', 'bladder_bowel', 'cognitive', 
+            'motor', 'cerebellar', 'speech', 'mental_state', 'fatigue'
+        ]}
+
+    def assess(self, category, level):
+        scoring = {
+            'sensory': {'normal': 1, 'mild': 2, 'moderate': 3, 'severe': 4},
+            'visual': self.visual_assessment(level),
+            'bladder_bowel': {'normal': 1, 'mild_incontinence': 2, 'severe_incontinence': 3},
+            'cognitive': {'normal': 1, 'mild': 2, 'moderate': 3, 'severe': 4},
+            'motor': {'normal': 1, 'mild': 2, 'moderate': 3, 'severe': 4},
+            'cerebellar': {'normal': 1, 'mild': 2, 'severe': 3},
+            'speech': {'normal': 1, 'mild': 2, 'moderate': 3, 'severe': 4},
+            'mental_state': {'normal': 1, 'mild': 2, 'moderate': 3, 'severe': 4},
+            'fatigue': {'none': 1, 'mild': 2, 'moderate': 3, 'severe': 4},
         }
+        
+        if category in self.scores:
+            if category == 'visual' and isinstance(level, tuple):
+                self.scores[category] = scoring[category]
+            else:
+                self.scores[category] = scoring[category].get(level, 4)
 
-    def assess_sensory(self, sensory_type):
-        self.scores['sensory'] = {
-            'normal': 1,
-            'mild': 2,
-            'moderate': 3,
-            'severe': 4,
-        }.get(sensory_type, 4)
-
-    def assess_visual(self, acuity_left, acuity_right):
-        if acuity_left >= 1.0 and acuity_right >= 1.0:
-            self.scores['visual'] = 1
-        elif acuity_left >= 0.7 or acuity_right >= 0.7:
-            self.scores['visual'] = 2
-        else:
-            self.scores['visual'] = 3
-
-    def assess_bladder_bowel(self, function):
-        if function == 'normal':
-            self.scores['bladder_bowel'] = 1
-        elif function == 'mild_incontinence':
-            self.scores['bladder_bowel'] = 2
-        else:
-            self.scores['bladder_bowel'] = 3
-
-    def assess_cognitive(self, level):
-        self.scores['cognitive'] = {
-            'normal': 1,
-            'mild': 2,
-            'moderate': 3,
-            'severe': 4,
-        }.get(level, 4)
-
-    def assess_motor(self, strength_level):
-        self.scores['motor'] = {
-            'normal': 1,
-            'mild': 2,
-            'moderate': 3,
-            'severe': 4,
-        }.get(strength_level, 4)
-
-    def assess_cerebellar(self, coordination_level):
-        self.scores['cerebellar'] = {
-            'normal': 1,
-            'mild': 2,
-            'severe': 3,
-        }.get(coordination_level, 3)
-
-    def assess_speech(self, speech_condition):
-        self.scores['speech'] = {
-            'normal': 1,
-            'mild': 2,
-            'moderate': 3,
-            'severe': 4,
-        }.get(speech_condition, 4)
-
-    def assess_mental_state(self, mental_condition):
-        self.scores['mental_state'] = {
-            'normal': 1,
-            'mild': 2,
-            'moderate': 3,
-            'severe': 4,
-        }.get(mental_condition, 4)
-
-    def assess_fatigue(self, fatigue_level):
-        self.scores['fatigue'] = {
-            'none': 1,
-            'mild': 2,
-            'moderate': 3,
-            'severe': 4,
-        }.get(fatigue_level, 4)
+    def visual_assessment(self, acuity):
+        if acuity is None:
+            return 4  # Assigning a high score (or "severe") when acuity data is not available
+        if isinstance(acuity, tuple) and len(acuity) == 2:
+            if acuity[0] >= 1.0 and acuity[1] >= 1.0:
+                return 1
+            elif acuity[0] >= 0.7 or acuity[1] >= 0.7:
+                return 2
+            else:
+                return 3
+        return 4  # If acuity is not valid
 
     def calculate_edss(self):
         total_score = sum(self.scores.values())
-        total_score = min(total_score, 30)  # Максимум 30, соответствие докладу EDSS
-        return total_score
+        return min(total_score, 30)
 
+# Load models and initialize tokenizer
 nlp = spacy.load('ru_core_news_md')
 tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
 
-def extract_information(text):
-    results = {
-        'visual_acuity': None,
-        'motor_strength': None,
-        'sensory_feedback': None,
-        'bladder_bowel_function': None,
-        'cognitive_feedback': None,
-        'fatigue': None,
-        'speech_condition': None,
-        'mental_state': None
-    }
+class TextExtractor:
+    def __init__(self):
+        self.extractors = [
+            self.extract_visual_acuity,
+            self.extract_motor_strength,
+            self.extract_sensory_feedback,
+            self.extract_bladder_bowel_function,
+            self.extract_cognitive_feedback,
+            self.extract_fatigue,
+            self.extract_speech_condition,
+            self.extract_mental_state,
+            self.extract_symptoms_onset,
+        ]
 
-    doc = nlp(text)
+    def extract_information(self, text):
+        results = {}
+        doc = nlp(text)
+        for extractor in self.extractors:
+            results.update(extractor(doc))
+        return results
 
-    # Извлечение информации
-    for sent in doc.sents:
-        if "слабость" in sent.text or "неустойчивость" in sent.text:
-            results['motor_strength'] = 'severe'
+    def extract_visual_acuity(self, doc):
+        for sent in doc.sents:
+            if "острота зрения" in sent.text:
+                match = re.search(r'OD=(\S+);\s*OS=(\S+)', sent.text)
+                if match:
+                    acuity_left = float(match.group(1).replace(',', '.'))
+                    acuity_right = float(match.group(2).replace(',', '.'))
+                    return {'visual_acuity': (acuity_left, acuity_right)}
+        return {'visual_acuity': None}
 
-        if "мурашки" in sent.text:
-            results['sensory_feedback'] = 'mild'
+    def extract_motor_strength(self, doc):
+        for sent in doc.sents:
+            if "слабость" in sent.text or "неустойчивость" in sent.text:
+                return {'motor_strength': 'severe'}
+        return {'motor_strength': None}
 
-        if "головокружение" in sent.text:
-            results['cognitive_feedback'] = 'mild'
+    def extract_sensory_feedback(self, doc):
+        for sent in doc.sents:
+            if "онемение" in sent.text:
+                return {'sensory_feedback': 'mild'}
+        return {'sensory_feedback': None}
 
-        
-        if "острота зрения" in sent.text:
-            match = re.search(r'OD=(\S+);\s*OS=(\S+)', sent.text)
-            if match:
-                results['visual_acuity'] = (float(match.group(1).replace(',', '.')), float(match.group(2).replace(',', '.')))
+    def extract_bladder_bowel_function(self, doc):
+        for sent in doc.sents:
+            if "недержание" in sent.text or "частые позывы" in sent.text:
+                return {'bladder_bowel_function': 'mild_incontinence'}
+        return {'bladder_bowel_function': None}
 
-        if "недержание" in sent.text or "задержка" in sent.text:
-            results['bladder_bowel_function'] = 'mild_incontinence'
-        
-        if "депрессия" in sent.text:
-            results['mental_state'] = 'moderate'
+    def extract_cognitive_feedback(self, doc):
+        for sent in doc.sents:
+            if "головокружение" in sent.text:
+                return {'cognitive_feedback': 'mild'}
+        return {'cognitive_feedback': None}
 
-        if "утомляемость" in sent.text:
-            results['fatigue'] = 'moderate'
+    def extract_fatigue(self, doc):
+        for sent in doc.sents:
+            if "утомляемость" in sent.text:
+                return {'fatigue': 'moderate'}
+        return {'fatigue': None}
 
-        if "дизартрия" in sent.text:
-            results['speech_condition'] = 'moderate'
+    def extract_speech_condition(self, doc):
+        for sent in doc.sents:
+            if "дизартрия" in sent.text:
+                return {'speech_condition': 'moderate'}
+        return {'speech_condition': None}
 
-    return results
+    def extract_mental_state(self, doc):
+        for sent in doc.sents:
+            if "депрессия" in sent.text:
+                return {'mental_state': 'moderate'}
+        return {'mental_state': None}
+
+    def extract_symptoms_onset(self, doc):
+        for sent in doc.sents:
+            if "заболела" in sent.text or "появилось" in sent.text:
+                return {'symptoms_onset': True}
+        return {'symptoms_onset': False}
 
 def read_text_file(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             return file.read()
     except Exception as e:
-        print(f"Ошибка при чтении файла: {e}")
+        logging.error(f"Ошибка при чтении файла: {e}")
         return ""
 
 def evaluate_model(text):
@@ -156,61 +149,53 @@ def evaluate_model(text):
     with torch.no_grad():
         outputs = model(**inputs)
     
-    # логика оценки модели
     return outputs
 
-def main(user_id: str)->None:
-    file_path = os.path.join('TestFiles', str(user_id)+'.txt')
+def main(user_id: str) -> None:
+    file_path = os.path.join('TestFiles', f"{user_id}.txt")
     clinical_text = read_text_file(file_path)
 
     if not clinical_text:
         return
 
-    # Обрезка текста до 512 токенов
-    tokens = tokenizer.encode(clinical_text, add_special_tokens=True, truncation=True, max_length=512)
-    truncated_text = tokenizer.decode(tokens, skip_special_tokens=True)  # Преобразование обратно в текст
+    # Omit the output of decoding for now to focus on extraction
+    results = TextExtractor().extract_information(clinical_text)
 
-    results = extract_information(truncated_text)
-
-    print("Извлеченные данные:")
-    for key, value in results.items():
-        print(f"{key}: {value}")
+    logging.info("Извлеченные данные: %s", results)
 
     edss_calculator = EDSSCalculator()
+    
+    if results['visual_acuity'] is not None:
+        edss_calculator.assess('visual', results['visual_acuity'])
+    
+    if results['sensory_feedback'] is not None:
+        edss_calculator.assess('sensory', results['sensory_feedback'])
 
-    # Заполнение данных в калькулятор
-    if results['visual_acuity']:
-        acuity_left, acuity_right = results['visual_acuity']
-        edss_calculator.assess_visual(acuity_left, acuity_right)
+    if results['bladder_bowel_function'] is not None:
+        edss_calculator.assess('bladder_bowel', results['bladder_bowel_function'])
 
-    if results['sensory_feedback']:
-        edss_calculator.assess_sensory(results['sensory_feedback'])
+    if results['cognitive_feedback'] is not None:
+        edss_calculator.assess('cognitive', results['cognitive_feedback'])
 
-    if results['bladder_bowel_function']:
-        edss_calculator.assess_bladder_bowel(results['bladder_bowel_function'])
+    if results['motor_strength'] is not None:
+        edss_calculator.assess('motor', results['motor_strength'])
 
-    if results['cognitive_feedback']:
-        edss_calculator.assess_cognitive(results['cognitive_feedback'])
+    if results['speech_condition'] is not None:
+        edss_calculator.assess('speech', results['speech_condition'])
 
-    if results['motor_strength']:
-        edss_calculator.assess_motor(results['motor_strength'])
+    if results['mental_state'] is not None:
+        edss_calculator.assess('mental_state', results['mental_state'])
 
-    if results['speech_condition']:
-        edss_calculator.assess_speech(results['speech_condition'])
+    if results['fatigue'] is not None:
+        edss_calculator.assess('fatigue', results['fatigue'])
 
-    if results['mental_state']:
-        edss_calculator.assess_mental_state(results['mental_state'])
-
-    if results['fatigue']:
-        edss_calculator.assess_fatigue(results['fatigue'])
-
-    # Расчет итогового EDSS
+    # Calculate and log the EDSS score
     edss_score = edss_calculator.calculate_edss()
+    logging.info(f'Рассчитанный уровень EDSS: {edss_score:.1f}')
 
-    print(f'Рассчитанный уровень EDSS: {edss_score:.1f}')
-
-    return evaluate_model(truncated_text)
-
+    return evaluate_model(clinical_text)
 
 if __name__ == "__main__":
-    main(632)
+    main("551")
+
+# 708(5:5) 696(6:5) 641(7:3,5) 632(3:0) 627(3:0) 551(:)
